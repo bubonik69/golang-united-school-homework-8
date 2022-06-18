@@ -178,34 +178,36 @@ func searchUser(id string, file *os.File)(err error, u *User){
 }
 func removeUser(id string, file *os.File)error{
 	defer file.Seek(0,0)
-	err,u:=searchUser(id,file)
+	_,u:=searchUser(id,file)
 	if u!=nil{
-		return fmt.Errorf("Item with id %s not found",id)
-	}
-	var users []User
-	file.Seek(0,0)
-	b, err := ioutil.ReadAll(file)
-	if err!=nil{
-		return err
-	}
-	err=json.Unmarshal(b,&users)
-
-	if err!=nil{
-		return err
-	}
-	for k, u := range users {
-		if u.Id == id {
-			users = append(users[:k], users[k+1:]...)
+		var users []User
+		file.Seek(0,0)
+		b, err := ioutil.ReadAll(file)
+		if err!=nil{
+			return err
 		}
+		err=json.Unmarshal(b,&users)
+
+		if err!=nil{
+			return err
+		}
+		for k, u := range users {
+			if u.Id == id {
+				users = append(users[:k], users[k+1:]...)
+			}
+		}
+		b,err=json.Marshal(users)
+		if err!=nil{
+			return err
+		}
+		file.Truncate(0)
+		file.Seek(0, 0)
+		file.Write(b)
+		return nil
 	}
-	b,err=json.Marshal(users)
-	if err!=nil{
-		return err
-	}
-	file.Truncate(0)
-	file.Seek(0, 0)
-	file.Write(b)
-	return nil
+	return fmt.Errorf("Item with id %s not found",id)
+
+
 }
 func listUser(fileName string, writer io.Writer){
 
