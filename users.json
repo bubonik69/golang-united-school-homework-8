@@ -1,7 +1,1 @@
-[
-  {"id":"1","email":"test@test.com","age":34},
-  {"id":"2","email":"test2@test.com","age":31},
-  {"id": "3","email": "test@test.com","age": 31},
-  {"id": "4","email": "test2@test.com","age": 41}
-]
-
+[{"id":"1","email":"test@test.com","age":34}]

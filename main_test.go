@@ -10,7 +10,7 @@ import (
 const fileName = "test.json"
 const filePermission = 0644
 
-// Common validation tests
+//Common validation tests
 func TestOperationMissingError(t *testing.T) {
 	var buffer bytes.Buffer
 
@@ -74,7 +74,7 @@ func TestFileNameMissingError(t *testing.T) {
 	}
 }
 
-// List operation tests
+//List operation tests
 func TestListOperation(t *testing.T) {
 	args := Arguments{
 		"id":        "",
@@ -119,7 +119,7 @@ func TestListOperation(t *testing.T) {
 	}
 }
 
-// Adding operation tests
+//Adding operation tests
 func TestAddingOperationMissingItem(t *testing.T) {
 	var buffer bytes.Buffer
 	args := Arguments{
