@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 )
 
@@ -32,39 +33,51 @@ func Perform(args Arguments, writer io.Writer) error {
 	}
 	defer file.Close()
 	file.Seek(0,0)
-	operate:=args["operation"]
-	switch operate {
+	switch args["operation"] {
 	case "list":
-		listUser(args["fileName"],writer)
+		b,err:=listUser(file)
+		if err!=nil{
+			log.Fatal(err)
+		}
+		if len(b)>0{
+			writer.Write(b)
+		}else{
+			log.Fatal("file is empty")
+		}
+
+
 	case "add":
-		if args["item"]==""{
+		value,ok:=args["item"]
+		if !ok || value==""{
 			return fmt.Errorf("-item flag has to be specified")
 		}
-		if _,ok:=args["item"];ok{
-			err:=addUser(args["item"],file,writer)
-			if err!=nil{
-			writer.Write([]byte(err.Error()))
-			}
+
+		err=addUser(args["item"],file)
+		if err!=nil{
+		return err
 		}
+
 		break
 	case "remove":
-		if args["id"]==""{
+		value,ok:=args["id"]
+		if value=="" || !ok{
 			return fmt.Errorf("-id flag has to be specified")
 		}
-		if _,ok:=args["id"];ok{
-			err:=removeUser(args["id"],file)
-			if err!=nil{
-				writer.Write([]byte(err.Error()))
-			}
+		err:=removeUser(args["id"],file)
+		if err!=nil{
+			writer.Write([]byte(err.Error()))
 		}
+
 		break
 	case "findById":
-		if args["id"]==""{
+		value,ok:=args["id"]
+		if value=="" || !ok{
 			return fmt.Errorf("-id flag has to be specified")
 		}
-		if _,ok:=args["id"];ok {
-			err, u := searchUser(args["id"], file)
-			checkErr(err, writer)
+			 u, err := searchUser(args["id"], file)
+			if err!=nil{
+				return err
+			}
 			if u!=nil{
 				b, _ := json.Marshal(u)
 				if b != nil {
@@ -73,11 +86,9 @@ func Perform(args Arguments, writer io.Writer) error {
 			}else{
 				writer.Write([]byte(""))
 			}
-
-		}
 		break
 	default:
-		return fmt.Errorf("Operation %s not allowed!", operate)
+		return fmt.Errorf("Operation %s not allowed!", args["operation"])
 
 
 	}
@@ -107,87 +118,70 @@ func parseArgs() Arguments{
 
 
 func main() {
-	//var buffer bytes.Buffer
-	//err:=Perform(args,&buffer)
-	//if err!=nil{
-	//	fmt.Println(err)
-	//}
 	arg:=parseArgs()
 	err := Perform(arg, os.Stdout)
 	if err != nil {
 		panic(err)
 	}
-
-
 }
 
 
-func checkErr (err error,writer io.Writer){
-	if err!=nil {
-		writer.Write([]byte(error.Error(err)))
-	}
-}
-
-func addUser(item string, file *os.File, writer io.Writer)error{
+func addUser(item string, file *os.File)error{
 		var users []User
 		var newUser User
 		// check valid json
-		defer file.Seek(0,0)
-		file.Seek(0,0)
 		if !json.Valid([]byte(item)){
 			return fmt.Errorf("-item flag has to be specified")
 		}
 		err:=json.Unmarshal([]byte(item),&newUser)
-		checkErr(err, writer)
-		//check id
+		if err!=nil{
+			return err
+		}
 		b, err := ioutil.ReadAll(file)
-		checkErr(err, writer)
-
 		if json.Valid(b){
 			err=json.Unmarshal(b,&users)
 			if err!=nil{
-				checkErr(err,writer)
+				return err
 			}
 		}
-	err,u:=searchUser(newUser.Id,file)
+	u,err:=searchUser(newUser.Id,file)
 	// if user with id exist - >
 	if u!=nil{
 		return fmt.Errorf("Item with id %s already exists",newUser.Id)
 	}
 	users= append(users,newUser)
 	b,err=json.Marshal(&users)
-	checkErr(err,writer)
+	file.Truncate(0)
+	file.Seek(0, 0)
 	file.Write(b)
 	return nil
 }
-func searchUser(id string, file *os.File)(err error, u *User){
-	defer file.Seek(0,0)
-	var users []User
+func searchUser(id string, file *os.File)(u *User ,err error){
 	file.Seek(0,0)
+	var users []User
 	b, err := ioutil.ReadAll(file)
 		err=json.Unmarshal(b,&users)
 		if err!=nil{
-			return fmt.Errorf("%v",err),nil
+			return nil, fmt.Errorf("%v",err)
 		}
 		for i:=0;i<len(users);i++{
 			if users[i].Id==id{
-				return nil,&users[i]
+				return &users[i],nil
 			}
 		}
-	return nil,u
+	return nil,fmt.Errorf("")
 }
 func removeUser(id string, file *os.File)error{
-	defer file.Seek(0,0)
-	_,u:=searchUser(id,file)
-	if u!=nil{
+	u,_:=searchUser(id,file)
+	if u==nil{
+		return fmt.Errorf("Item with id %s not found",id)
+	}
 		var users []User
-		file.Seek(0,0)
 		b, err := ioutil.ReadAll(file)
 		if err!=nil{
 			return err
 		}
 		err=json.Unmarshal(b,&users)
-
 		if err!=nil{
 			return err
 		}
@@ -204,22 +198,11 @@ func removeUser(id string, file *os.File)error{
 		file.Seek(0, 0)
 		file.Write(b)
 		return nil
-	}
-	return fmt.Errorf("Item with id %s not found",id)
-
-
 }
-func listUser(fileName string, writer io.Writer){
-
-	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil{
-		fmt.Println("Unable to create file:", err)
-		os.Exit(1)
+func listUser(file *os.File) ([]byte, error){
+	b, err := ioutil.ReadAll(file)
+	if err!=nil{
+		return nil,err
 	}
-	defer file.Close()
-	file.Seek(0,0)
-	var b []byte
-	b, err = ioutil.ReadAll(file)
-	checkErr(err, writer)
-	writer.Write(b)
+	return b,nil
 }
